@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31702.278
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "APAS__MotionLib_GTS800", "APAS__MotionLib_GTS800.csproj", "{2E715D2B-8081-4D89-88BE-1FD572E1577B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "APAS__MotionLib_GTS800", "GTS800\APAS__MotionLib_GTS800.csproj", "{2E715D2B-8081-4D89-88BE-1FD572E1577B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
