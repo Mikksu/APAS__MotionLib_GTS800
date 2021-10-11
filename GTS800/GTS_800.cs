@@ -5,13 +5,17 @@ using APAS__MotionControl;
 using APAS__MotionControl.Core;
 using log4net;
 using static gts.mc;
+using System.IO;
+using GTS_800;
+using Newtonsoft.Json;
+using System.Linq;
 
 /*
- 注意：
+注意：
 
- 1. 应用该模板时，请注意将命名空间更改为实际名称。
- 2. 该类中的所有Childxxx()方法中，请勿阻塞式调用实际的运动控制器库函数，因为在APAS主程序中，可能会同时调用多个轴同步移动。
- 3. 请保证所有的Childxxx()方法为线程安全。
+1. 应用该模板时，请注意将命名空间更改为实际名称。
+2. 该类中的所有Childxxx()方法中，请勿阻塞式调用实际的运动控制器库函数，因为在APAS主程序中，可能会同时调用多个轴同步移动。
+3. 请保证所有的Childxxx()方法为线程安全。
 
 */
 
@@ -21,10 +25,13 @@ namespace APAS__MotionLib_Template
     {
         #region Variables
 
-        short m_cardId = 0;
+        private readonly short _mCardId;
+        private Gts_AxisCfg _gtsAxisCfg;
+        private readonly string _configFileGts = "gts800.cfg";
+        private readonly string _configFileAxis = "Gts800_AxisCfg.json";
 
         #endregion
-        
+
         #region Constructors
 
         /// <summary>
@@ -32,18 +39,28 @@ namespace APAS__MotionLib_Template
         /// </summary>
         /// <param name="portName"></param>
         /// <param name="baudRate"></param>
+        /// <param name="config"></param>
         /// <param name="logger"></param>
-
-        public GTS_800(string portName, int baudRate, ILog logger = null) : base(portName, baudRate, logger)
+        public GTS_800(string portName, int baudRate, string config, ILog logger) : base(portName, baudRate, config,
+            logger)
         {
             //TODO 此处初始化控制器参数；如果下列参数动态读取，则可在ChildInit()函数中赋值。
+
+            if (!short.TryParse(portName, out _mCardId))
+                _mCardId = 0;
+
+            var configs = config.Split(',');
+            if (configs.Length == 2)
+            {
+                _configFileGts = configs[0];
+                _configFileAxis = configs[1];
+            }
+
             AxisCount = 8; // 最大轴数
             MaxAnalogInputChannels = 8; // 最大模拟量输入通道数
             MaxAnalogOutputChannels = 0; // 最大模拟量输出通道数
             MaxDigitalInputChannels = 8; // 最大数字量输入通道数
             MaxDigitalOutputChannels = 8; // 最大数字量输出通道数
-
-
         }
 
         #endregion
@@ -65,11 +82,23 @@ namespace APAS__MotionLib_Template
             // 例如： InnerAxisInfoCollection.Add(new AxisInfo(1, new Version(1, 0, 0)));
 
             //TODO 4.需要完成函数 ChildUpdateStatus()，否则会报NotImplementException异常。
-            short rtn = GT_Open((short)m_cardId, 0, 1);
-            CommandRtnCheck(rtn, "GT_Open");
-            rtn = GT_LoadConfig((short)m_cardId, AppDomain.CurrentDomain.BaseDirectory+"gts800.cfg");
-            CommandRtnCheck(rtn, "GT_LoadConfig");
+            var rtn = GT_Open((short) _mCardId, 0, 1);
+            CommandRtnCheck(rtn, nameof(GT_Open));
 
+            rtn = GT_Reset((short) _mCardId);
+            CommandRtnCheck(rtn, nameof(GT_Reset));
+
+            rtn = GT_ClrSts((short) _mCardId, 1, 8);
+            CommandRtnCheck(rtn, nameof(GT_ClrSts));
+
+            var fullName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _configFileGts);
+            if (!File.Exists(fullName))
+                throw new FileNotFoundException($"无法找到轴卡配置文件 {fullName}");
+
+            rtn = GT_LoadConfig((short) _mCardId, fullName);
+            CommandRtnCheck(rtn, nameof(GT_LoadConfig));
+
+            LoadAxisConfiguration();
         }
 
         /// <summary>
@@ -79,10 +108,10 @@ namespace APAS__MotionLib_Template
         /// <param name="acc">加速度值</param>
         protected override void ChildSetAcceleration(int axis, double acc)
         {
-            short rtn = GT_GetTrapPrm(m_cardId, (short)axis, out TTrapPrm trapPrm);
+            var rtn = GT_GetTrapPrm(_mCardId, (short) axis, out var trapPrm);
             CommandRtnCheck(rtn, "GT_GetTrapPrm  in ChildSetAcceleration");
             trapPrm.acc = acc;
-            rtn= GT_SetTrapPrm(m_cardId, (short)axis, ref trapPrm);
+            rtn = GT_SetTrapPrm(_mCardId, (short) axis, ref trapPrm);
             CommandRtnCheck(rtn, "GT_SetTrapPrm  in ChildSetAcceleration");
         }
 
@@ -93,10 +122,10 @@ namespace APAS__MotionLib_Template
         /// <param name="dec">减速度值</param>
         protected override void ChildSetDeceleration(int axis, double dec)
         {
-            short rtn = GT_GetTrapPrm(m_cardId, (short)axis, out TTrapPrm trapPrm);
+            var rtn = GT_GetTrapPrm(_mCardId, (short) axis, out var trapPrm);
             CommandRtnCheck(rtn, "GT_GetTrapPrm  in ChildSetAcceleration");
             trapPrm.acc = dec;
-            rtn = GT_SetTrapPrm(m_cardId, (short)axis, ref trapPrm);
+            rtn = GT_SetTrapPrm(_mCardId, (short) axis, ref trapPrm);
             CommandRtnCheck(rtn, "GT_SetTrapPrm  in ChildSetAcceleration");
         }
 
@@ -113,48 +142,52 @@ namespace APAS__MotionLib_Template
              * 以实时刷新UI上的位置。       
              */
 
-//            HOME_MODE_LIMIT(10)：限位回原点
-//HOME_MODE_LIMIT_HOME(11)：限位 + Home回原点
-//HOME_MODE_LIMIT_INDEX(12)：限位 + Index回原点
-//HOME_MODE_LIMIT_HOME_INDEX(13)：限位 + Home + Index回原点
-//HOME_MODE_HOME(20)： Home回原点
-//HOME_MODE_HOME_INDEX(22)： Home + Index回原点
-//HOME_MODE_INDEX(30)： Index回原点
-//HOME_MODE_FORCED_HOME(40)：强制Home回原点
-//HOME_MODE_FORCED_HOME_INDEX(41)：强制Home + Index回原点
+            //HOME_MODE_LIMIT(10)：限位回原点
+            //HOME_MODE_LIMIT_HOME(11)：限位 + Home回原点
+            //HOME_MODE_LIMIT_INDEX(12)：限位 + Index回原点
+            //HOME_MODE_LIMIT_HOME_INDEX(13)：限位 + Home + Index回原点
+            //HOME_MODE_HOME(20)： Home回原点
+            //HOME_MODE_HOME_INDEX(22)： Home + Index回原点
+            //HOME_MODE_INDEX(30)： Index回原点
+            //HOME_MODE_FORCED_HOME(40)：强制Home回原点
+            //HOME_MODE_FORCED_HOME_INDEX(41)：强制Home + Index回原点
 
 
+            //short rtn = GT_GetHomePrm(m_cardId, (short)axis, out thomeprm);
+            //thomeprm.mode = 12;//回零方式
+            //thomeprm.moveDir = -1;//回零方向
+            //thomeprm.edge = 0;
+            //thomeprm.velHigh = 5;
+            //thomeprm.velLow = 1;
+            //thomeprm.acc = 1;
+            //thomeprm.dec = 1;
+            //thomeprm.searchHomeDistance = 0;//搜搜距离
+            //thomeprm.homeOffset = 0;  //偏移距离
+            //thomeprm.escapeStep = 1000;
+            //thomeprm.pad2_1 = 1;//此参数表示如果回零时sensor处于原点位置上，也会再继续回原点动作，否者会异常
 
-            THomePrm thomeprm;
-            THomeStatus homests;
-            short rtn = GT_GetHomePrm(m_cardId, (short)axis, out thomeprm);
-            thomeprm.mode = 12;//回零方式
-            thomeprm.moveDir = -1;//回零方向
-            thomeprm.edge = 0;
-            thomeprm.velHigh = 5;
-            thomeprm.velLow = 1;
-            thomeprm.acc = 1;
-            thomeprm.dec = 1;
-            thomeprm.searchHomeDistance = 0;//搜搜距离
-            thomeprm.homeOffset = 0;  //偏移距离
-            thomeprm.escapeStep = 1000;
-            thomeprm.pad2_1 = 1;//此参数表示如果回零时sensor处于原点位置上，也会再继续回原点动作，否者会异常
+            THomeStatus homeStatus;
+            var homeParam = CreateAxisParam((short) axis);
 
-            rtn = GT_GoHome(m_cardId, (short)axis, ref thomeprm);  //启动回零
+            homeParam.acc = 5;
+            homeParam.dec = 5;
+            homeParam.velHigh = hiSpeed;
+            homeParam.velLow = 1;
+            var rtn = GT_GoHome(_mCardId, (short) axis, ref homeParam); //启动回零
             CommandRtnCheck(rtn, "GT_GoHome");
             double p;
             do
             {
                 Thread.Sleep(50);
-                rtn=GT_GetHomeStatus(m_cardId, (short)axis, out homests);
+                rtn = GT_GetHomeStatus(_mCardId, (short) axis, out homeStatus);
                 CommandRtnCheck(rtn, "GT_GetHomeStatus");
 
-                p=  ChildUpdateAbsPosition(axis);
+                p = ChildUpdateAbsPosition(axis);
                 RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, p));
+            } while (homeStatus.run != 0);
 
-            } while (homests.run!=0);
             Thread.Sleep(500);
-            GT_ZeroPos(m_cardId, (short)axis, 1);
+            GT_ZeroPos(_mCardId, (short) axis, 1);
             p = ChildUpdateAbsPosition(axis);
             RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, p));
         }
@@ -168,36 +201,43 @@ namespace APAS__MotionLib_Template
         /// 该值已转换为步数；对于伺服系统，该值已转换为实际距离。</param>
         /// <param name="fastMoveRequested">是否启用快速移动模式。如不适用请忽略。</param>
         /// <param name="microstepRate">当启用快速移动模式时的驱动器细分比值。如不适用请忽略。</param>
-        protected override void ChildMove(int axis, double speed, double distance,
-            bool fastMoveRequested = false, double microstepRate = 0)
+        protected override void ChildMove(
+            int axis,
+            double speed,
+            double distance,
+            bool fastMoveRequested = false,
+            double microstepRate = 0)
         {
             /*
              * 耗时操作。当执行操作时，请轮询轴状态，并调用 RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, xxx)); 
              * 以实时刷新UI上的位置。       
             */
 
-            short rtn;
-            double encpos;
-            uint clk;
-            rtn=GT_PrfTrap(m_cardId, (short)axis);
-            rtn=GT_SetVel(m_cardId, (short)axis, speed);
-         
+            var rtn = GT_PrfTrap(_mCardId, (short) axis);
+            CommandRtnCheck(rtn, nameof(GT_PrfTrap));
 
-            rtn = GT_GetAxisEncPos((short)m_cardId, (short)axis, out encpos, 1, out clk);
-            rtn = GT_SetPos((short)m_cardId, (short)axis, (int)encpos + (int)distance);
+            rtn = GT_SetVel(_mCardId, (short) axis, speed);
+            CommandRtnCheck(rtn, nameof(GT_SetVel));
+
+            rtn = GT_GetAxisEncPos((short) _mCardId, (short) axis, out var encPosition, 1, out var clk);
+            CommandRtnCheck(rtn, nameof(GT_GetAxisEncPos));
+
+            rtn = GT_SetPos((short) _mCardId, (short) axis, (int) encPosition + (int) distance);
             CommandRtnCheck(rtn, "GT_SetPos");
-            rtn = GT_Update((short)m_cardId, 1 << ((int)axis - 1));
+
+            rtn = GT_Update((short) _mCardId, 1 << ((int) axis - 1));
             CommandRtnCheck(rtn, "GT_Update");
 
-            int psts = 0;
-            uint pClock;
+            var moveStatus = 0;
             do
             {
-                rtn = GT_GetSts((short)m_cardId, (short)axis, out psts, 1, out pClock);
-                double p = ChildUpdateAbsPosition(axis);
+                rtn = GT_GetSts((short) _mCardId, (short) axis, out moveStatus, 1, out var pClock);
+                var p = ChildUpdateAbsPosition(axis);
                 RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, p));
                 Thread.Sleep(100);
-            } while ((psts & 0x400) != 0);
+            } while ((moveStatus & 0x400) != 0);
+
+            //TODO 增加停止后状态检测
         }
 
 
@@ -209,27 +249,35 @@ namespace APAS__MotionLib_Template
         /// <param name="position">绝对目标位置</param>
         /// <param name="fastMoveRequested">是否启用快速移动模式。如不适用请忽略。</param>
         /// <param name="microstepRate">当启用快速移动模式时的驱动器细分比值。如不适用请忽略。</param>
-        protected override void ChildMoveAbs(int axis, double speed, double position, bool fastMoveRequested = false,
+        protected override void ChildMoveAbs(
+            int axis,
+            double speed,
+            double position,
+            bool fastMoveRequested = false,
             double microstepRate = 0)
         {
-            short rtn;
-            rtn=GT_PrfTrap(m_cardId, (short)axis);
-            rtn = GT_SetVel(m_cardId, (short)axis, speed);
+            var rtn = GT_PrfTrap(_mCardId, (short) axis);
+            CommandRtnCheck(rtn, nameof(GT_PrfTrap));
 
-            rtn = GT_SetPos((short)m_cardId, (short)axis, (int)position);
-            CommandRtnCheck(rtn, "GT_SetPos");
-            rtn = GT_Update((short)m_cardId, 1 << ((int)axis - 1));
-            CommandRtnCheck(rtn, "GT_Update");
+            rtn = GT_SetVel(_mCardId, (short) axis, speed);
+            CommandRtnCheck(rtn, nameof(GT_SetVel));
 
-            int psts = 0;
-            uint pClock;
+            rtn = GT_SetPos((short) _mCardId, (short) axis, (int) position);
+            CommandRtnCheck(rtn, nameof(GT_SetPos));
+
+            rtn = GT_Update((short) _mCardId, 1 << ((int) axis - 1));
+            CommandRtnCheck(rtn, nameof(GT_Update));
+
+            int movStatus;
             do
             {
-                rtn = GT_GetSts(m_cardId, (short)axis, out psts, 1, out pClock);
-                double p = ChildUpdateAbsPosition(axis);
+                rtn = GT_GetSts(_mCardId, (short) axis, out movStatus, 1, out _);
+                var p = ChildUpdateAbsPosition(axis);
                 RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, p));
                 Thread.Sleep(100);
-            } while ((psts & 0x400) != 0);
+            } while ((movStatus & 0x400) != 0);
+
+            //TODO Check the status of the axis to report the errors
         }
 
         /// <summary>
@@ -238,9 +286,10 @@ namespace APAS__MotionLib_Template
         /// <param name="axis">轴号</param>
         protected override void ChildServoOn(int axis)
         {
-            short rtn= GT_AxisOn(m_cardId, (short)axis);
-            CommandRtnCheck(rtn, "GT_AxisOn");
+            var rtn = GT_AxisOn(_mCardId, (short) axis);
+            CommandRtnCheck(rtn, nameof(GT_AxisOn));
 
+            //TODO Check the status of the axis to report the errors
         }
 
         /// <summary>
@@ -249,8 +298,8 @@ namespace APAS__MotionLib_Template
         /// <param name="axis">轴号</param>
         protected override void ChildServoOff(int axis)
         {
-            short rtn = GT_AxisOff(m_cardId, (short)axis);
-            CommandRtnCheck(rtn, "GT_AxisOn");
+            var rtn = GT_AxisOff(_mCardId, (short) axis);
+            CommandRtnCheck(rtn, nameof(GT_AxisOff));
         }
 
         /// <summary>
@@ -263,8 +312,8 @@ namespace APAS__MotionLib_Template
             //pClock 读取控制器时钟，默认值为：NULL，即不用读取控制器时钟
             //count  读取的轴数，默认为 1。正整数。
 
-            short rtn = GT_GetAxisEncPos(m_cardId, (short)axis, out double pValue, 1, out uint pClock);
-            CommandRtnCheck(rtn, "GT_AxisOn");
+            var rtn = GT_GetAxisEncPos(_mCardId, (short) axis, out var pValue, 1, out var pClock);
+            CommandRtnCheck(rtn, nameof(GT_GetAxisEncPos));
             return pValue;
         }
 
@@ -279,7 +328,6 @@ namespace APAS__MotionLib_Template
             // 1. 读取完状态后请调用 RaiseAxisStateUpdatedEvent 函数。
             // 2. 实例化 AxisStatusArgs 时请传递所有参数。
             // RaiseAxisStateUpdatedEvent(new AxisStatusArgs(int.MinValue, double.NaN, false, false));
-
         }
 
         /// <summary>
@@ -293,8 +341,6 @@ namespace APAS__MotionLib_Template
             //    例如对于 8 轴轴卡，请调用针对8个轴调用 8 次 RaiseAxisStateUpdatedEvent 函数。
             // 2. 实例化 AxisStatusArgs 时请传递所有参数。
             //// RaiseAxisStateUpdatedEvent(new AxisStatusArgs(int.MinValue, double.NaN, false, false));
-
-
         }
 
 
@@ -304,6 +350,10 @@ namespace APAS__MotionLib_Template
         /// <param name="axis">轴号</param>
         protected override void ChildResetFault(int axis)
         {
+            var rtn = GT_ClrSts((short) _mCardId, (short) axis, 1);
+            CommandRtnCheck(rtn, "GT_ClrSts");
+
+            //TODO Check the status of the axis to report the errors
         }
 
 
@@ -319,15 +369,10 @@ namespace APAS__MotionLib_Template
             //MC_ENABLE(该宏定义为 10)：驱动器使能。
             //MC_CLEAR(该宏定义为 11)：报警清除。
             //MC_GPO(该宏定义为 12)：通用输出。
-            
-            short rtn;
-            if (isOn)
-                rtn=GT_SetDoBit(m_cardId, MC_GPO, (short)(port+1), 0);
-            else
-                rtn=GT_SetDoBit(m_cardId, MC_GPO, (short)(port+1), 1);
+
+            var rtn = GT_SetDoBit(_mCardId, MC_GPO, (short) (port + 1), isOn ? (short) 0 : (short) 1);
 
             CommandRtnCheck(rtn, "GT_SetDoBit");
-
         }
 
         /// <summary>
@@ -340,10 +385,9 @@ namespace APAS__MotionLib_Template
             //MC_ENABLE(该宏定义为 10)：驱动器使能。
             //MC_CLEAR(该宏定义为 11)：报警清除。
             //MC_GPO(该宏定义为 12)：通用输出。
-           short rtn= GT_GetDo(m_cardId, MC_GPO, out int pValue);
+            var rtn = GT_GetDo(_mCardId, MC_GPO, out var pValue);
             CommandRtnCheck(rtn, "GT_GetDo");
-            return (pValue & (1 << port))==0;
-
+            return (pValue & (1 << port)) == 0;
         }
 
         /// <summary>
@@ -352,13 +396,12 @@ namespace APAS__MotionLib_Template
         /// <returns>端口状态列表。True表示端口输出为有效电平。</returns>
         protected override IReadOnlyList<bool> ChildReadDigitalOutput()
         {
-            short rtn = GT_GetDo(m_cardId, MC_GPO, out int pValue);
+            var rtn = GT_GetDo(_mCardId, MC_GPO, out var pValue);
             CommandRtnCheck(rtn, "GT_GetDo");
-            bool[] states = new bool[16];
-            for(int i=0;i<16;i++)
-            {
+            var states = new bool[16];
+            for (var i = 0; i < 16; i++)
                 states[i] = (pValue & (1 << i)) == 0;
-            }
+
             return states;
         }
 
@@ -369,8 +412,8 @@ namespace APAS__MotionLib_Template
         /// <returns>端口状态。True表示端口输出为有效电平。</returns>
         protected override bool ChildReadDigitalInput(int port)
         {
-            short rtn = GT_GetDi(m_cardId, MC_GPI, out int pValue);
-            CommandRtnCheck(rtn, "GT_GetDi");         
+            var rtn = GT_GetDi(_mCardId, MC_GPI, out var pValue);
+            CommandRtnCheck(rtn, "GT_GetDi");
             return (pValue & (1 << port)) == 0;
         }
 
@@ -380,16 +423,14 @@ namespace APAS__MotionLib_Template
         /// <returns>端口状态列表。True表示端口输出为有效电平。</returns>
         protected override IReadOnlyList<bool> ChildReadDigitalInput()
         {
-            short rtn = GT_GetDi(m_cardId, MC_GPI, out int pValue);
+            var rtn = GT_GetDi(_mCardId, MC_GPI, out var pValue);
             CommandRtnCheck(rtn, "GT_GetDi");
-            bool[] states = new bool[16];
-            for (int i = 0; i < 16; i++)
-            {
+            var states = new bool[16];
+            for (var i = 0; i < 16; i++)
                 states[i] = (pValue & (1 << i)) == 0;
-            }
+
             return states;
         }
-
 
         #endregion
 
@@ -411,7 +452,7 @@ namespace APAS__MotionLib_Template
         /// <returns></returns>
         protected override double ChildReadAnalogInput(int port)
         {
-            short rtn=GT_GetAdc(m_cardId, (short)port, out double pValue, 1, out uint pClock);
+            var rtn = GT_GetAdc(_mCardId, (short) port, out var pValue, 1, out var pClock);
             CommandRtnCheck(rtn, "GT_GetAdc");
             return pValue;
         }
@@ -422,14 +463,13 @@ namespace APAS__MotionLib_Template
         /// <returns>电压值列表。</returns>
         protected override IReadOnlyList<double> ChildReadAnalogOutput()
         {
-            short[] datas = new short[1];
-            short rtn = GT_GetDac(m_cardId, 0, out  datas[0], 1, out uint pClock);
+            var datas = new short[1];
+            var rtn = GT_GetDac(_mCardId, 0, out datas[0], 1, out var pClock);
             CommandRtnCheck(rtn, "GT_GetDac");
-            double[] vRtn = new double[datas.Length]; 
-            for(int i=0;i<datas.Length;i++)
-            {
+            var vRtn = new double[datas.Length];
+            for (var i = 0; i < datas.Length; i++)
                 vRtn[i] = datas[i];
-            }
+
             return vRtn;
         }
 
@@ -440,7 +480,7 @@ namespace APAS__MotionLib_Template
         /// <returns></returns>
         protected override double ChildReadAnalogOutput(int port)
         {
-            short rtn = GT_GetDac(m_cardId, (short)port, out short pValue, 1, out uint pClock);
+            var rtn = GT_GetDac(_mCardId, (short) port, out var pValue, 1, out var pClock);
             CommandRtnCheck(rtn, "GT_GetAdc");
             return pValue;
         }
@@ -452,11 +492,10 @@ namespace APAS__MotionLib_Template
         /// <param name="value">电压值</param>
         protected override void ChildSetAnalogOutput(int port, double value)
         {
-            short data = (short)value;
+            var data = (short) value;
 
-            short rtn=GT_SetDac(m_cardId, (short)port, ref data, 1);
+            var rtn = GT_SetDac(_mCardId, (short) port, ref data, 1);
             CommandRtnCheck(rtn, "GT_SetDac");
-
         }
 
         /// <summary>
@@ -499,8 +538,13 @@ namespace APAS__MotionLib_Template
         /// <param name="speed">移动速度</param>
         /// <param name="analogCapture">反馈信号捕获端口</param>
         /// <param name="scanResult">扫描结果列表（X:位置，Y:反馈信号）</param>
-        protected override void ChildStartFast1D(int axis, double range, double interval, double speed,
-            int analogCapture, out IEnumerable<Point2D> scanResult)
+        protected override void ChildStartFast1D(
+            int axis,
+            double range,
+            double interval,
+            double speed,
+            int analogCapture,
+            out IEnumerable<Point2D> scanResult)
         {
             throw new NotSupportedException();
         }
@@ -516,9 +560,15 @@ namespace APAS__MotionLib_Template
         /// <param name="scanResult">第1路扫描结果列表（X:位置，Y:反馈信号）</param>
         /// <param name="analogCapture2">第2路反馈信号采样间隔</param>
         /// <param name="scanResult2">第2路扫描结果列表（X:位置，Y:反馈信号）</param>
-        protected override void ChildStartFast1D(int axis, double range, double interval, double speed,
+        protected override void ChildStartFast1D(
+            int axis,
+            double range,
+            double interval,
+            double speed,
             int analogCapture,
-            out IEnumerable<Point2D> scanResult, int analogCapture2, out IEnumerable<Point2D> scanResult2)
+            out IEnumerable<Point2D> scanResult,
+            int analogCapture2,
+            out IEnumerable<Point2D> scanResult2)
         {
             throw new NotSupportedException();
         }
@@ -535,8 +585,16 @@ namespace APAS__MotionLib_Template
         /// <param name="vSpeed">垂直轴扫描速度</param>
         /// <param name="analogCapture">反馈信号捕获端口</param>
         /// <param name="scanResult">扫描结果列表（X:水平轴坐标，Y:垂直轴坐标，Z:反馈信号）</param>
-        protected override void ChildStartBlindSearch(int hAxis, int vAxis, double range, double gap,
-            double interval, double hSpeed, double vSpeed, int analogCapture, out IEnumerable<Point3D> scanResult)
+        protected override void ChildStartBlindSearch(
+            int hAxis,
+            int vAxis,
+            double range,
+            double gap,
+            double interval,
+            double hSpeed,
+            double vSpeed,
+            int analogCapture,
+            out IEnumerable<Point3D> scanResult)
         {
             throw new NotSupportedException();
         }
@@ -546,7 +604,7 @@ namespace APAS__MotionLib_Template
         /// </summary>
         protected override void ChildStop()
         {
-            GT_Stop(m_cardId, 0xff, 0);
+            GT_Stop(_mCardId, 0xff, 0);
         }
 
         /// <summary>
@@ -554,7 +612,6 @@ namespace APAS__MotionLib_Template
         /// </summary>
         protected override void ChildDispose()
         {
-
         }
 
         /// <summary>
@@ -564,7 +621,6 @@ namespace APAS__MotionLib_Template
         /// <param name="speed">速度</param>
         protected override void CheckSpeed(double speed)
         {
-
         }
 
         /// <summary>
@@ -576,10 +632,11 @@ namespace APAS__MotionLib_Template
         }
 
         #endregion
+
         private void CommandRtnCheck(short rtn, string commandName)
         {
-            string conStr = $"cardNum : {m_cardId};";
-            string errorInfo = string.Empty;
+            var conStr = $"cardNum : {_mCardId};";
+            var errorInfo = string.Empty;
             switch (rtn)
             {
                 case 0:
@@ -626,10 +683,49 @@ namespace APAS__MotionLib_Template
             }
 
             if (!string.IsNullOrEmpty(errorInfo))
-            {
                 throw new Exception(conStr + errorInfo);
-            }
         }
 
+        private THomePrm CreateAxisParam(short axisIndex)
+        {
+            var rtn = GT_GetHomePrm(_mCardId, axisIndex, out var homeParam);
+
+            var cfg = _gtsAxisCfg.CardAxisCfgs.FirstOrDefault(x => x.CardId == _mCardId)
+                ?.AxisCfgs
+                .FirstOrDefault(x => x.AxisIndex == axisIndex);
+
+            if (cfg == null)
+                throw new Exception($"找不到轴卡({_mCardId})的轴({axisIndex})的配置文件");
+
+
+            cfg.Validate();
+
+            homeParam.mode = (short) cfg.HomeMode; //回零方式
+            homeParam.moveDir = (short) cfg.HomeDir; //回零方向
+
+            homeParam.searchHomeDistance = cfg.SearchHomeDistance; //搜搜距离
+            homeParam.homeOffset = cfg.HomeOffset; //偏移距离
+            homeParam.escapeStep = cfg.EscapeStep;
+            homeParam.pad2_1 = (short) cfg.Pad2_1; //此参数表示如果回零时sensor处于原点位置上，也会再继续回原点动作，否者会异常
+
+            return homeParam;
+        }
+
+        private void LoadAxisConfiguration()
+        {
+            var fileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _configFileAxis);
+            if (!File.Exists(fileName))
+                return;
+
+            var jsonInfo = File.ReadAllText(fileName);
+            try
+            {
+                _gtsAxisCfg = JsonConvert.DeserializeObject<Gts_AxisCfg>(jsonInfo);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"无法加载轴参数配置文件 {fileName}, {ex.Message}");
+            }
+        }
     }
 }

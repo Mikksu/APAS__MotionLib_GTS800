@@ -1,0 +1,63 @@
+﻿{
+	"CardAxisCfgs": [
+		{
+			"CardId": 0,
+			"AxisCfgs": [
+				{
+					"AxisIndex": 1,
+					"HomeMode": 11,
+					"HomeDir": -1,
+					"SearchHomeDistance": 0,
+					"HomeOffset": 0,
+					"EscapeStep": 1000,
+					"Pad2_1": 1
+				},
+				{
+					"AxisIndex": 2,
+					"HomeMode": 20,
+					"HomeDir": -1,
+					"SearchHomeDistance": 0,
+					"HomeOffset": 0,
+					"EscapeStep": 1000,
+					"Pad2_1": 1
+				},
+				{
+					"AxisIndex": 3,
+					"HomeMode": 11,
+					"HomeDir": -1,
+					"SearchHomeDistance": 0,
+					"HomeOffset": 0,
+					"EscapeStep": 1000,
+					"Pad2_1": 1
+				},
+				{
+					"AxisIndex": 4,
+					"HomeMode": 11,
+					"HomeDir": -1,
+					"SearchHomeDistance": 0,
+					"HomeOffset": 0,
+					"EscapeStep": 1000,
+					"Pad2_1": 1
+				},
+				{
+					"AxisIndex": 5,
+					"HomeMode": 11,
+					"HomeDir": -1,
+					"SearchHomeDistance": 0,
+					"HomeOffset": 0,
+					"EscapeStep": 1000,
+					"Pad2_1": 1
+				},
+				{
+					"AxisIndex": 6,
+					"HomeMode": 11,
+					"HomeDir": -1,
+					"SearchHomeDistance": 0,
+					"HomeOffset": 0,
+					"EscapeStep": 1000,
+					"Pad2_1": 1
+				}
+			]
+		}
+	]
+}
