@@ -85,12 +85,6 @@ namespace APAS__MotionLib_Template
             var rtn = GT_Open((short) _mCardId, 0, 1);
             CommandRtnCheck(rtn, nameof(GT_Open));
 
-            rtn = GT_Reset((short) _mCardId);
-            CommandRtnCheck(rtn, nameof(GT_Reset));
-
-            rtn = GT_ClrSts((short) _mCardId, 1, 8);
-            CommandRtnCheck(rtn, nameof(GT_ClrSts));
-
             var fullName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, _configFileGts);
             if (!File.Exists(fullName))
                 throw new FileNotFoundException($"无法找到轴卡配置文件 {fullName}");
@@ -98,7 +92,20 @@ namespace APAS__MotionLib_Template
             rtn = GT_LoadConfig((short) _mCardId, fullName);
             CommandRtnCheck(rtn, nameof(GT_LoadConfig));
 
+            //rtn = GT_Reset((short) _mCardId);
+            //CommandRtnCheck(rtn, nameof(GT_Reset));
+
+            rtn = GT_ClrSts((short) _mCardId, 1, 8);
+            CommandRtnCheck(rtn, nameof(GT_ClrSts));
+
+
             LoadAxisConfiguration();
+
+            for (short i = 1; i <= 8; i++)
+            {
+                GT_AxisOn(_mCardId, i);
+                ChildUpdateAbsPosition(i);
+            }
         }
 
         /// <summary>
@@ -110,6 +117,7 @@ namespace APAS__MotionLib_Template
         {
             var rtn = GT_GetTrapPrm(_mCardId, (short) axis, out var trapPrm);
             CommandRtnCheck(rtn, "GT_GetTrapPrm  in ChildSetAcceleration");
+
             trapPrm.acc = acc;
             rtn = GT_SetTrapPrm(_mCardId, (short) axis, ref trapPrm);
             CommandRtnCheck(rtn, "GT_SetTrapPrm  in ChildSetAcceleration");
@@ -124,6 +132,7 @@ namespace APAS__MotionLib_Template
         {
             var rtn = GT_GetTrapPrm(_mCardId, (short) axis, out var trapPrm);
             CommandRtnCheck(rtn, "GT_GetTrapPrm  in ChildSetAcceleration");
+
             trapPrm.acc = dec;
             rtn = GT_SetTrapPrm(_mCardId, (short) axis, ref trapPrm);
             CommandRtnCheck(rtn, "GT_SetTrapPrm  in ChildSetAcceleration");
@@ -142,30 +151,6 @@ namespace APAS__MotionLib_Template
              * 以实时刷新UI上的位置。       
              */
 
-            //HOME_MODE_LIMIT(10)：限位回原点
-            //HOME_MODE_LIMIT_HOME(11)：限位 + Home回原点
-            //HOME_MODE_LIMIT_INDEX(12)：限位 + Index回原点
-            //HOME_MODE_LIMIT_HOME_INDEX(13)：限位 + Home + Index回原点
-            //HOME_MODE_HOME(20)： Home回原点
-            //HOME_MODE_HOME_INDEX(22)： Home + Index回原点
-            //HOME_MODE_INDEX(30)： Index回原点
-            //HOME_MODE_FORCED_HOME(40)：强制Home回原点
-            //HOME_MODE_FORCED_HOME_INDEX(41)：强制Home + Index回原点
-
-
-            //short rtn = GT_GetHomePrm(m_cardId, (short)axis, out thomeprm);
-            //thomeprm.mode = 12;//回零方式
-            //thomeprm.moveDir = -1;//回零方向
-            //thomeprm.edge = 0;
-            //thomeprm.velHigh = 5;
-            //thomeprm.velLow = 1;
-            //thomeprm.acc = 1;
-            //thomeprm.dec = 1;
-            //thomeprm.searchHomeDistance = 0;//搜搜距离
-            //thomeprm.homeOffset = 0;  //偏移距离
-            //thomeprm.escapeStep = 1000;
-            //thomeprm.pad2_1 = 1;//此参数表示如果回零时sensor处于原点位置上，也会再继续回原点动作，否者会异常
-
             THomeStatus homeStatus;
             var homeParam = CreateAxisParam((short) axis);
 
@@ -175,21 +160,23 @@ namespace APAS__MotionLib_Template
             homeParam.velLow = 1;
             var rtn = GT_GoHome(_mCardId, (short) axis, ref homeParam); //启动回零
             CommandRtnCheck(rtn, "GT_GoHome");
-            double p;
             do
             {
-                Thread.Sleep(50);
                 rtn = GT_GetHomeStatus(_mCardId, (short) axis, out homeStatus);
-                CommandRtnCheck(rtn, "GT_GetHomeStatus");
+                CommandRtnCheck(rtn, nameof(GT_GetHomeStatus));
 
-                p = ChildUpdateAbsPosition(axis);
-                RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, p));
+                ChildUpdateAbsPosition(axis);
+
+                Thread.Sleep(100);
             } while (homeStatus.run != 0);
 
             Thread.Sleep(500);
             GT_ZeroPos(_mCardId, (short) axis, 1);
-            p = ChildUpdateAbsPosition(axis);
-            RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, p));
+            ChildUpdateAbsPosition(axis);
+
+            CheckAxisStatus((short) axis);
+
+            GT_ClrSts(_mCardId, (short) axis, 1);
         }
 
         /// <summary>
@@ -223,23 +210,26 @@ namespace APAS__MotionLib_Template
             CommandRtnCheck(rtn, nameof(GT_GetAxisEncPos));
 
             rtn = GT_SetPos((short) _mCardId, (short) axis, (int) encPosition + (int) distance);
-            CommandRtnCheck(rtn, "GT_SetPos");
+            CommandRtnCheck(rtn, nameof(GT_SetPos));
 
             rtn = GT_Update((short) _mCardId, 1 << ((int) axis - 1));
-            CommandRtnCheck(rtn, "GT_Update");
+            CommandRtnCheck(rtn, nameof(GT_Update));
 
             var moveStatus = 0;
             do
             {
-                rtn = GT_GetSts((short) _mCardId, (short) axis, out moveStatus, 1, out var pClock);
+                rtn = GT_GetSts((short) _mCardId, (short) axis, out moveStatus, 1, out var _);
                 var p = ChildUpdateAbsPosition(axis);
-                RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, p));
+
                 Thread.Sleep(100);
             } while ((moveStatus & 0x400) != 0);
 
-            //TODO 增加停止后状态检测
-        }
+            Thread.Sleep(500);
 
+            ChildUpdateAbsPosition(axis);
+
+            CheckAxisStatus((short) axis);
+        }
 
         /// <summary>
         /// 移动指定轴到绝对位置（绝对移动模式）。
@@ -272,12 +262,13 @@ namespace APAS__MotionLib_Template
             do
             {
                 rtn = GT_GetSts(_mCardId, (short) axis, out movStatus, 1, out _);
-                var p = ChildUpdateAbsPosition(axis);
-                RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, p));
+                ChildUpdateAbsPosition(axis);
                 Thread.Sleep(100);
             } while ((movStatus & 0x400) != 0);
 
-            //TODO Check the status of the axis to report the errors
+            Thread.Sleep(500);
+
+            CheckAxisStatus((short) axis);
         }
 
         /// <summary>
@@ -314,6 +305,9 @@ namespace APAS__MotionLib_Template
 
             var rtn = GT_GetAxisEncPos(_mCardId, (short) axis, out var pValue, 1, out var pClock);
             CommandRtnCheck(rtn, nameof(GT_GetAxisEncPos));
+
+            RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, pValue));
+
             return pValue;
         }
 
@@ -684,6 +678,43 @@ namespace APAS__MotionLib_Template
 
             if (!string.IsNullOrEmpty(errorInfo))
                 throw new Exception(conStr + errorInfo);
+        }
+
+        /// <summary>
+        /// Check the status of the specified axis, which contains the errors on the axis.
+        /// </summary>
+        /// <param name="axis"></param>
+        private void CheckAxisStatus(short axis)
+        {
+            var rtn = GT_GetSts(_mCardId, (short) axis, out var pSts, 1, out var _);
+            CommandRtnCheck(rtn, nameof(GT_GetSts));
+
+
+            if ((pSts & 0x2) != 0)
+                throw new Exception($"伺服报警");
+
+            if ((pSts & 0x10) != 0)
+                throw new Exception($"跟随误差越线");
+            //if ((pSts & 0x20) != 0)
+            //{
+            //    throw new Exception($"第{_mCardId}号卡，第{axis}个轴 正限位触发");
+            //}
+            //if ((pSts & 0x40) != 0)
+            //{
+            //    throw new Exception($"第{_mCardId}号卡，第{axis}个轴 负限位触发");
+            //}
+            //if ((pSts & 0x80) != 0)
+            //{
+            //    throw new Exception($"第{_mCardId}号卡，第{axis}个轴 平滑停止");
+            //}
+            if ((pSts & 0x100) != 0)
+                throw new Exception($"紧急停止状态");
+
+            if ((pSts & 0x200) == 0)
+                throw new Exception($"伺服未使能");
+
+            if ((pSts & 0x400) != 0)
+                throw new Exception($"规划器正在运动");
         }
 
         private THomePrm CreateAxisParam(short axisIndex)

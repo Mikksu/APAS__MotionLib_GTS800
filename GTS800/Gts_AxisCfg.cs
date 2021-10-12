@@ -3,20 +3,20 @@ using System.Collections.Generic;
 
 namespace GTS_800
 {
-	public  class Gts_AxisCfg
-	{
-		public List<CardAxisCfg> CardAxisCfgs = new List<CardAxisCfg>();
+    public class Gts_AxisCfg
+    {
+        public List<CardAxisCfg> CardAxisCfgs = new List<CardAxisCfg>();
 
         public void Validate()
         {
             CardAxisCfgs.ForEach(x => x.Validate());
         }
-	}
+    }
 
-	public class CardAxisCfg
-	{
-		public int CardId { get; set; } = -1;
-		public List<AxisCfg> AxisCfgs = new List<AxisCfg>();
+    public class CardAxisCfg
+    {
+        public int CardId { get; set; } = -1;
+        public List<AxisCfg> AxisCfgs = new List<AxisCfg>();
 
         public void Validate()
         {
@@ -32,34 +32,35 @@ namespace GTS_800
                 }
             });
         }
-	}
+    }
 
-	public class AxisCfg
-	{
+    public class AxisCfg
+    {
+        #region Properties
 
-		#region Properties
+        public int AxisIndex { get; set; } = -1;
 
-		public int AxisIndex { get; set; } = -1;
+        public int HomeMode { get; set; } = -1;
 
-		public int HomeMode { get; set; } = -1;
+        public int HomeDir { get; set; } = -2;
 
-		public int HomeDir { get; set; } = -2;
+        public int SearchHomeDistance { get; set; } = -1;
 
-		public int SearchHomeDistance { get; set; } = -1;
+        public int HomeOffset { get; set; } = -1;
 
-		public int HomeOffset { get; set; } = -1;
+        public int EscapeStep { get; set; } = -1;
 
-		public int EscapeStep { get; set; } = -1;
+        public int Pad2_1 { get; set; } = -1;
 
-		public int Pad2_1 { get; set; } = -1;
+        #endregion
 
-		#endregion
-
-		#region Methods
+        #region Methods
 
         public void Validate()
         {
-            string errParam = string.Empty;
+            var errParam = string.Empty;
+
+            //TODO 根据手册查询每个参数的范围
 
             if (HomeMode == -1)
                 errParam = nameof(HomeMode);
@@ -76,13 +77,8 @@ namespace GTS_800
 
             if (!string.IsNullOrEmpty(errParam))
                 throw new ArgumentOutOfRangeException(errParam, $"轴 {AxisIndex} 参数 {errParam} 错误。");
-            
-
         }
 
-
-		#endregion
-		    
-
-	}
+        #endregion
+    }
 }
