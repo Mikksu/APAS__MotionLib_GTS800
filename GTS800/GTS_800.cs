@@ -191,14 +191,18 @@ namespace APAS__MotionLib_Template
                 rtn = GT_GetHomeStatus(_mCardId, (short) axis, out homeStatus);
                 CommandRtnCheck(rtn, "GT_GetHomeStatus");
 
-                p = ChildUpdateAbsPosition(axis);
-                RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, p));
+                ChildUpdateAbsPosition(axis);
             } while (homeStatus.run != 0);
 
             Thread.Sleep(500);
-            GT_ZeroPos(_mCardId, (short) axis, 1);
-            p = ChildUpdateAbsPosition(axis);
-            RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, p));
+            rtn = GT_ZeroPos(_mCardId, (short) axis, 1);
+            CommandRtnCheck(rtn, nameof(GT_ZeroPos));
+            
+            rtn = GT_ClrSts(_mCardId, (short)axis, 1);
+            CommandRtnCheck(rtn, nameof(GT_ClrSts));
+
+            var pos = ChildUpdateAbsPosition(axis);
+            RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, pos, true, true));
         }
 
         /// <summary>
@@ -241,12 +245,16 @@ namespace APAS__MotionLib_Template
             do
             {
                 rtn = GT_GetSts(_mCardId, (short) axis, out moveStatus, 1, out var pClock);
-                var p = ChildUpdateAbsPosition(axis);
-                RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, p));
+                CommandRtnCheck(rtn, nameof(GT_GetSts));
+
+                ChildUpdateAbsPosition(axis);
                 Thread.Sleep(100);
             } while ((moveStatus & 0x400) != 0);
 
-            //TODO 增加停止后状态检测
+            
+            Thread.Sleep(500);
+            ChildUpdateAbsPosition(axis);
+            CheckAxisStatus((short)axis);
         }
 
 
@@ -281,12 +289,12 @@ namespace APAS__MotionLib_Template
             do
             {
                 rtn = GT_GetSts(_mCardId, (short) axis, out movStatus, 1, out _);
-                var p = ChildUpdateAbsPosition(axis);
-                RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, p));
+                ChildUpdateAbsPosition(axis);
                 Thread.Sleep(100);
             } while ((movStatus & 0x400) != 0);
 
-            //TODO Check the status of the axis to report the errors
+            Thread.Sleep(500);
+            CheckAxisStatus((short)axis);
         }
 
         /// <summary>
@@ -323,6 +331,9 @@ namespace APAS__MotionLib_Template
 
             var rtn = GT_GetAxisEncPos(_mCardId, (short) axis, out var pValue, 1, out var pClock);
             CommandRtnCheck(rtn, nameof(GT_GetAxisEncPos));
+            
+            RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, pValue));
+
             return pValue;
         }
 
@@ -336,7 +347,9 @@ namespace APAS__MotionLib_Template
             // 注意:
             // 1. 读取完状态后请调用 RaiseAxisStateUpdatedEvent 函数。
             // 2. 实例化 AxisStatusArgs 时请传递所有参数。
-            // RaiseAxisStateUpdatedEvent(new AxisStatusArgs(int.MinValue, double.NaN, false, false));
+            
+            // RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, pValue, false, false));
+            
         }
 
         /// <summary>
@@ -694,6 +707,44 @@ namespace APAS__MotionLib_Template
             if (!string.IsNullOrEmpty(errorInfo))
                 throw new Exception(conStr + errorInfo);
         }
+
+        /// <summary>
+        /// Check the status of the specified axis, which contains the errors on the axis.
+        /// </summary>
+        /// <param name="axis"></param>
+        private void CheckAxisStatus(short axis)
+        {
+            var rtn = GT_GetSts(_mCardId, (short)axis, out var pSts, 1, out var _);
+            CommandRtnCheck(rtn, nameof(GT_GetSts));
+
+
+            if ((pSts & 0x2) != 0)
+                throw new Exception($"伺服报警");
+
+            if ((pSts & 0x10) != 0)
+                throw new Exception($"跟随误差越线");
+            //if ((pSts & 0x20) != 0)
+            //{
+            //    throw new Exception($"第{_mCardId}号卡，第{axis}个轴 正限位触发");
+            //}
+            //if ((pSts & 0x40) != 0)
+            //{
+            //    throw new Exception($"第{_mCardId}号卡，第{axis}个轴 负限位触发");
+            //}
+            //if ((pSts & 0x80) != 0)
+            //{
+            //    throw new Exception($"第{_mCardId}号卡，第{axis}个轴 平滑停止");
+            //}
+            if ((pSts & 0x100) != 0)
+                throw new Exception($"紧急停止状态");
+
+            if ((pSts & 0x200) == 0)
+                throw new Exception($"伺服未使能");
+
+            if ((pSts & 0x400) != 0)
+                throw new Exception($"规划器正在运动");
+        }
+
 
         private THomePrm CreateAxisParam(short axisIndex)
         {
