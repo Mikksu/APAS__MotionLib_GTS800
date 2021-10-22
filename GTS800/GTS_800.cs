@@ -99,6 +99,7 @@ namespace APAS__MotionLib_Template
 
             LoadAxisConfiguration();
 
+            // 强制自动ServoOn所有轴，不管是否为伺服轴
             var cfg = _gtsAxisCfg.CardAxisCfgs.FirstOrDefault(x => x.CardId == _mCardId);
             if(cfg!=null)
             {
@@ -151,30 +152,6 @@ namespace APAS__MotionLib_Template
              * 以实时刷新UI上的位置。       
              */
 
-            //HOME_MODE_LIMIT(10)：限位回原点
-            //HOME_MODE_LIMIT_HOME(11)：限位 + Home回原点
-            //HOME_MODE_LIMIT_INDEX(12)：限位 + Index回原点
-            //HOME_MODE_LIMIT_HOME_INDEX(13)：限位 + Home + Index回原点
-            //HOME_MODE_HOME(20)： Home回原点
-            //HOME_MODE_HOME_INDEX(22)： Home + Index回原点
-            //HOME_MODE_INDEX(30)： Index回原点
-            //HOME_MODE_FORCED_HOME(40)：强制Home回原点
-            //HOME_MODE_FORCED_HOME_INDEX(41)：强制Home + Index回原点
-
-
-            //short rtn = GT_GetHomePrm(m_cardId, (short)axis, out thomeprm);
-            //thomeprm.mode = 12;//回零方式
-            //thomeprm.moveDir = -1;//回零方向
-            //thomeprm.edge = 0;
-            //thomeprm.velHigh = 5;
-            //thomeprm.velLow = 1;
-            //thomeprm.acc = 1;
-            //thomeprm.dec = 1;
-            //thomeprm.searchHomeDistance = 0;//搜搜距离
-            //thomeprm.homeOffset = 0;  //偏移距离
-            //thomeprm.escapeStep = 1000;
-            //thomeprm.pad2_1 = 1;//此参数表示如果回零时sensor处于原点位置上，也会再继续回原点动作，否者会异常
-
             THomeStatus homeStatus;
             var homeParam = CreateAxisParam((short) axis);
 
@@ -201,7 +178,10 @@ namespace APAS__MotionLib_Template
             rtn = GT_ClrSts(_mCardId, (short)axis, 1);
             CommandRtnCheck(rtn, nameof(GT_ClrSts));
 
+            // 刷新位置
             var pos = ChildUpdateAbsPosition(axis);
+
+            // 刷新IsHomed状态和 Servo On状态
             RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, pos, true, true));
         }
 
@@ -306,7 +286,7 @@ namespace APAS__MotionLib_Template
             var rtn = GT_AxisOn(_mCardId, (short) axis);
             CommandRtnCheck(rtn, nameof(GT_AxisOn));
 
-            //TODO Check the status of the axis to report the errors
+            //TODO Check the status of the axis to report the errors;
         }
 
         /// <summary>
@@ -723,18 +703,14 @@ namespace APAS__MotionLib_Template
 
             if ((pSts & 0x10) != 0)
                 throw new Exception($"跟随误差越线");
-            //if ((pSts & 0x20) != 0)
-            //{
-            //    throw new Exception($"第{_mCardId}号卡，第{axis}个轴 正限位触发");
-            //}
-            //if ((pSts & 0x40) != 0)
-            //{
-            //    throw new Exception($"第{_mCardId}号卡，第{axis}个轴 负限位触发");
-            //}
+
+            if ((pSts & 0x20) != 0)
+                throw new Exception($"正限位触发");
+
+            if ((pSts & 0x40) != 0)
+                throw new Exception($"负限位触发");
             //if ((pSts & 0x80) != 0)
-            //{
             //    throw new Exception($"第{_mCardId}号卡，第{axis}个轴 平滑停止");
-            //}
             if ((pSts & 0x100) != 0)
                 throw new Exception($"紧急停止状态");
 
