@@ -232,7 +232,7 @@ namespace APAS__MotionLib_Template
             } while ((moveStatus & 0x400) != 0);
 
             
-            Thread.Sleep(500);
+            Thread.Sleep(10);
             ChildUpdateAbsPosition(axis);
             CheckAxisStatus((short)axis);
         }
