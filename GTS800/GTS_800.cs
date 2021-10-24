@@ -9,6 +9,7 @@ using System.IO;
 using GTS_800;
 using Newtonsoft.Json;
 using System.Linq;
+using System.Threading.Tasks;
 
 /*
 注意：
@@ -232,7 +233,7 @@ namespace APAS__MotionLib_Template
             } while ((moveStatus & 0x400) != 0);
 
             
-            Thread.Sleep(10);
+            Thread.Sleep(1);
             ChildUpdateAbsPosition(axis);
             CheckAxisStatus((short)axis);
         }
@@ -328,6 +329,20 @@ namespace APAS__MotionLib_Template
             rtn = GT_Update((short)_mCardId, 1 << (axis - 1));
             CommandRtnCheck(rtn, nameof(GT_Update));
 
+            var moveStatus = 0;
+            do
+            {
+                rtn = GT_GetSts(_mCardId, (short)axis, out moveStatus, 1, out var pClock);
+                CommandRtnCheck(rtn, nameof(GT_GetSts));
+
+                ChildUpdateAbsPosition(axis);
+                Thread.Sleep(100);
+            } while ((moveStatus & 0x400) != 0);
+
+
+            Thread.Sleep(1);
+            ChildUpdateAbsPosition(axis);
+            CheckAxisStatus((short)axis);
         }
 
         protected override void ChildJogStop(int axis)
