@@ -277,6 +277,66 @@ namespace APAS__MotionLib_Template
             CheckAxisStatus((short)axis);
         }
 
+        protected override void ChildJogStart(int axis, JogDir dir, double speed, double? acc = null, double? dec = null)
+        {
+            var rtn = GT_PrfJog(_mCardId, (short)axis);
+            CommandRtnCheck(rtn, nameof(GT_PrfJog));
+
+            rtn = GT_GetJogPrm(_mCardId, (short)axis, out var jogParam);
+            CommandRtnCheck(rtn, nameof(GT_GetJogPrm));
+
+            // 设置Jog方向和速度，速度的符号代表Jog的方向
+            rtn = GT_SetVel(_mCardId, (short)axis, dir == JogDir.NEGTIVE ? -speed : speed);
+            CommandRtnCheck(rtn, nameof(GT_SetVel));
+
+            // 设置Jog加速度
+            if (acc.HasValue)
+                jogParam.acc = acc.Value;
+            else
+            {
+                var axisCfg = FindAxisConfig(_mCardId, axis);
+
+                jogParam.acc = axisCfg.JogAcc;
+            }
+
+            // 设置Jog减速度
+            if (dec.HasValue)
+                jogParam.dec = dec.Value;
+            else
+            {
+                var axisCfg = FindAxisConfig(_mCardId, axis);
+
+                jogParam.dec = axisCfg.JogDec;
+            }
+
+            // 设置Smooth，如果配置文件里找不到该参数，设置为默认值0.5
+            try
+            {
+                var axisCfg = FindAxisConfig(_mCardId, axis);
+                jogParam.smooth = axisCfg.JogSmooth;
+            }
+            catch (Exception)
+            {
+                jogParam.smooth = 0.5;
+            }
+
+            // 设置Jog参数
+            rtn = GT_SetJogPrm(_mCardId, (short)axis, ref jogParam);
+            CommandRtnCheck(rtn, nameof(GT_SetJogPrm));
+
+            // 启动Jog
+            rtn = GT_Update((short)_mCardId, 1 << (axis - 1));
+            CommandRtnCheck(rtn, nameof(GT_Update));
+
+        }
+
+        protected override void ChildJogStop(int axis)
+        {
+            // option = 0 表示平滑停止
+            var rtn = GT_Stop(_mCardId, 1 << (axis - 1), 0);
+            CommandRtnCheck(rtn, nameof(GT_Stop));
+        }
+
         /// <summary>
         /// 开启励磁。
         /// </summary>
@@ -634,6 +694,19 @@ namespace APAS__MotionLib_Template
         }
 
         #endregion
+
+        private AxisCfg FindAxisConfig(int cardId, int axisId)
+        {
+            var cfgs = _gtsAxisCfg.CardAxisCfgs.FirstOrDefault(x => x.CardId == cardId);
+            if (cfgs == null)
+                throw new NullReferenceException($"未在轴运动配置文件 {_configFileGts} 中找到轴卡 {_mCardId}。");
+
+            var axisCfg = cfgs.AxisCfgs.FirstOrDefault(x => x.AxisIndex == axisId);
+            if (axisCfg == null)
+                throw new NullReferenceException($"未在轴运动配置文件 {_configFileGts} 中找到轴卡 {_mCardId}的{axisId}号轴。");
+
+            return axisCfg;
+        }
 
         private void CommandRtnCheck(short rtn, string commandName)
         {

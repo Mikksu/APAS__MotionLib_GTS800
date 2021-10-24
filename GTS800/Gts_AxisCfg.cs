@@ -53,6 +53,12 @@ namespace GTS_800
 
 		public int Pad2_1 { get; set; } = -1;
 
+        public double JogAcc { get; set; } = 1;
+
+        public double JogDec { get; set; } = 1;
+
+        public double JogSmooth { get; set; } = 0.5;
+
 		#endregion
 
 		#region Methods

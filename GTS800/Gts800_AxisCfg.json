@@ -10,7 +10,10 @@
 					"SearchHomeDistance": 0,
 					"HomeOffset": 0,
 					"EscapeStep": 1000,
-					"Pad2_1": 1
+					"Pad2_1": 1,
+					"JogAcc": 1,
+					"JogDec": 1,
+					"JogSmooth": 0.5 
 				},
 				{
 					"AxisIndex": 2,
@@ -19,7 +22,10 @@
 					"SearchHomeDistance": 0,
 					"HomeOffset": 0,
 					"EscapeStep": 1000,
-					"Pad2_1": 1
+					"Pad2_1": 1,
+          "JogAcc": 1,
+          "JogDec": 1,
+          "JogSmooth": 0.5
 				},
 				{
 					"AxisIndex": 3,
@@ -28,7 +34,10 @@
 					"SearchHomeDistance": 0,
 					"HomeOffset": 0,
 					"EscapeStep": 1000,
-					"Pad2_1": 1
+					"Pad2_1": 1,
+          "JogAcc": 1,
+          "JogDec": 1,
+          "JogSmooth": 0.5
 				},
 				{
 					"AxisIndex": 4,
@@ -37,7 +46,10 @@
 					"SearchHomeDistance": 0,
 					"HomeOffset": 0,
 					"EscapeStep": 1000,
-					"Pad2_1": 1
+					"Pad2_1": 1,
+          "JogAcc": 1,
+          "JogDec": 1,
+          "JogSmooth": 0.5
 				},
 				{
 					"AxisIndex": 5,
@@ -46,7 +58,10 @@
 					"SearchHomeDistance": 0,
 					"HomeOffset": 0,
 					"EscapeStep": 1000,
-					"Pad2_1": 1
+					"Pad2_1": 1,
+          "JogAcc": 1,
+          "JogDec": 1,
+          "JogSmooth": 0.5
 				},
 				{
 					"AxisIndex": 6,
@@ -55,7 +70,10 @@
 					"SearchHomeDistance": 0,
 					"HomeOffset": 0,
 					"EscapeStep": 1000,
-					"Pad2_1": 1
+					"Pad2_1": 1,
+          "JogAcc": 1,
+          "JogDec": 1,
+          "JogSmooth": 0.5
 				}
 			]
 		}
