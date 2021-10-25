@@ -195,19 +195,25 @@ namespace APAS__MotionLib_Template
         /// 该值已转换为步数；对于伺服系统，该值已转换为实际距离。</param>
         /// <param name="fastMoveRequested">是否启用快速移动模式。如不适用请忽略。</param>
         /// <param name="microstepRate">当启用快速移动模式时的驱动器细分比值。如不适用请忽略。</param>
-        protected override void ChildMove(
-            int axis,
-            double speed,
-            double distance,
-            bool fastMoveRequested = false,
-            double microstepRate = 0)
+        protected override void ChildMove( int axis, double speed, double distance, bool fastMoveRequested = false, double microstepRate = 0)
         {
             /*
              * 耗时操作。当执行操作时，请轮询轴状态，并调用 RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, xxx)); 
              * 以实时刷新UI上的位置。       
             */
 
-            var rtn = GT_PrfTrap(_mCardId, (short) axis);
+            // restrict the distance to the range of -999999999 to 999999999.
+            if (distance < -999999990)
+                distance = -999999990;
+
+            if (distance > 999999990)
+                distance = 999999990;
+
+            // clear the status before moving since the end limit might be triggered while moving. 
+            var rtn = GT_ClrSts(_mCardId, (short)axis, 1);
+            CommandRtnCheck(rtn, nameof(GT_ClrSts));
+
+            rtn = GT_PrfTrap(_mCardId, (short) axis);
             CommandRtnCheck(rtn, nameof(GT_PrfTrap));
 
             rtn = GT_SetVel(_mCardId, (short) axis, speed);
@@ -247,12 +253,7 @@ namespace APAS__MotionLib_Template
         /// <param name="position">绝对目标位置</param>
         /// <param name="fastMoveRequested">是否启用快速移动模式。如不适用请忽略。</param>
         /// <param name="microstepRate">当启用快速移动模式时的驱动器细分比值。如不适用请忽略。</param>
-        protected override void ChildMoveAbs(
-            int axis,
-            double speed,
-            double position,
-            bool fastMoveRequested = false,
-            double microstepRate = 0)
+        protected override void ChildMoveAbs( int axis, double speed, double position, bool fastMoveRequested = false, double microstepRate = 0)
         {
             var rtn = GT_PrfTrap(_mCardId, (short) axis);
             CommandRtnCheck(rtn, nameof(GT_PrfTrap));
