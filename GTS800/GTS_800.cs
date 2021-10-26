@@ -1,15 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Threading;
-using APAS__MotionControl;
+﻿using APAS__MotionControl;
 using APAS__MotionControl.Core;
-using log4net;
-using static gts.mc;
-using System.IO;
 using GTS_800;
+using log4net;
 using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
+using System.Threading;
+using static gts.mc;
 
 /*
 注意：
@@ -731,42 +730,44 @@ namespace APAS__MotionLib_Template
             switch (rtn)
             {
                 case 0:
-
                     break;
+
                 case 1:
                     errorInfo = $"{commandName} 指令执行错误";
                     break;
+
                 case 2:
                     errorInfo = $"{commandName} 指令license不支持";
-
                     break;
+
                 case 7:
                     errorInfo = $"{commandName} 指令参数错误";
-
                     break;
+
                 case 8:
                     errorInfo = $"{commandName} 指令DSP固件不支持";
-
                     break;
+
                 case -1:
                 case -2:
                 case -3:
                 case -4:
                 case -5:
                     errorInfo = $"{commandName} 指令与控制卡通讯失败";
-
                     break;
+
                 case -6:
                     errorInfo = $"打开控制器失败";
-
                     break;
+
                 case -7:
                     errorInfo = $"运动控制器没有相应";
-
                     break;
+
                 case -8:
                     errorInfo = $"{commandName} 指令多线程资源忙";
                     break;
+
                 default:
                     errorInfo = $"{commandName} 指令返回未知错误";
 
