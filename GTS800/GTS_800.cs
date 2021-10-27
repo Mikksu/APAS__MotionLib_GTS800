@@ -5,9 +5,11 @@ using log4net;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using static gts.mc;
 
 /*
@@ -109,6 +111,8 @@ namespace APAS__MotionLib_Template
                 }
             }
             
+            // update the real-time abs-position repeatedly in the background task.
+            StartBackgroundTask();
         }
 
         /// <summary>
@@ -218,10 +222,11 @@ namespace APAS__MotionLib_Template
             rtn = GT_SetVel(_mCardId, (short) axis, speed);
             CommandRtnCheck(rtn, nameof(GT_SetVel));
 
-            rtn = GT_GetAxisEncPos(_mCardId, (short) axis, out var encPosition, 1, out var clk);
+            var pos = new double[1];
+            rtn = GT_GetAxisEncPos(_mCardId, (short) axis, pos, 1, out var clk);
             CommandRtnCheck(rtn, nameof(GT_GetAxisEncPos));
 
-            rtn = GT_SetPos(_mCardId, (short) axis, (int) encPosition + (int) distance);
+            rtn = GT_SetPos(_mCardId, (short) axis, (int)pos[0] + (int) distance);
             CommandRtnCheck(rtn, nameof(GT_SetPos));
 
             rtn = GT_Update(_mCardId, 1 << (axis - 1));
@@ -383,13 +388,13 @@ namespace APAS__MotionLib_Template
         {
             //pClock 读取控制器时钟，默认值为：NULL，即不用读取控制器时钟
             //count  读取的轴数，默认为 1。正整数。
-
-            var rtn = GT_GetAxisEncPos(_mCardId, (short) axis, out var pValue, 1, out var pClock);
+            var pos = new double[1];
+            var rtn = GT_GetAxisEncPos(_mCardId, (short) axis, pos, 1, out var pClock);
             CommandRtnCheck(rtn, nameof(GT_GetAxisEncPos));
             
-            RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, pValue));
+            RaiseAxisStateUpdatedEvent(new AxisStatusArgs(axis, pos[0]));
 
-            return pValue;
+            return pos[0];
         }
 
         /// <summary>
@@ -811,7 +816,6 @@ namespace APAS__MotionLib_Template
                 throw new Exception($"规划器正在运动");
         }
 
-
         private THomePrm CreateAxisParam(short axisIndex)
         {
             var rtn = GT_GetHomePrm(_mCardId, axisIndex, out var homeParam);
@@ -852,6 +856,33 @@ namespace APAS__MotionLib_Template
             {
                 throw new Exception($"无法加载轴参数配置文件 {fileName}, {ex.Message}");
             }
+        }
+
+        private void StartBackgroundTask()
+        {
+            Task.Run(() =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        var pos = new double[AxisCount];
+                        var rtn = GT_GetAxisEncPos(_mCardId, 1, pos, (short)AxisCount, out var clk);
+                        CommandRtnCheck(rtn, nameof(GT_GetAxisEncPos));
+
+                        for (var i = 0; i < AxisCount; i++)
+                        {
+                            RaiseAxisStateUpdatedEvent(new AxisStatusArgs(i + 1, pos[i]));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debugger.Break();
+                    }
+
+                    Thread.Sleep(100);
+                }
+            });
         }
     }
 }

@@ -509,7 +509,7 @@ namespace gts
         [DllImport("gts.dll")]
         public static extern short GT_GetAxisPrfAcc(short cardNum,short axis,out double pValue,short count,out uint pClock);
         [DllImport("gts.dll")]
-        public static extern short GT_GetAxisEncPos(short cardNum,short axis,out double pValue,short count,out uint pClock);
+        public static extern short GT_GetAxisEncPos(short cardNum,short axis, double[] pValue,short count,out uint pClock);
         [DllImport("gts.dll")]
         public static extern short GT_GetAxisEncVel(short cardNum,short axis,out double pValue,short count,out uint pClock);
         [DllImport("gts.dll")]
