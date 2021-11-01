@@ -285,7 +285,11 @@ namespace APAS__MotionLib_Template
 
         protected override void ChildJogStart(int axis, JogDir dir, double speed, double? acc = null, double? dec = null)
         {
-            var rtn = GT_PrfJog(_mCardId, (short)axis);
+            // clear the status before moving since the end limit might be triggered while moving. 
+            var rtn = GT_ClrSts(_mCardId, (short)axis, 1);
+            CommandRtnCheck(rtn, nameof(GT_ClrSts));
+
+            rtn = GT_PrfJog(_mCardId, (short)axis);
             CommandRtnCheck(rtn, nameof(GT_PrfJog));
 
             rtn = GT_GetJogPrm(_mCardId, (short)axis, out var jogParam);
