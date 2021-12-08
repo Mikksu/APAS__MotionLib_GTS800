@@ -1,5 +1,5 @@
-﻿using APAS__MotionControl;
-using APAS__MotionControl.Core;
+﻿using APAS.McLib.Sdk;
+using APAS.McLib.Sdk.Core;
 using GTS_800;
 using log4net;
 using Newtonsoft.Json;
@@ -296,7 +296,7 @@ namespace APAS__MotionLib_Template
             CommandRtnCheck(rtn, nameof(GT_GetJogPrm));
 
             // 设置Jog方向和速度，速度的符号代表Jog的方向
-            rtn = GT_SetVel(_mCardId, (short)axis, dir == JogDir.NEGTIVE ? -speed : speed);
+            rtn = GT_SetVel(_mCardId, (short)axis, dir == JogDir.NEGATIVE ? -speed : speed);
             CommandRtnCheck(rtn, nameof(GT_SetVel));
 
             // 设置Jog加速度

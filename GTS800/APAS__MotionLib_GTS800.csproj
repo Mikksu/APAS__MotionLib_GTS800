@@ -31,8 +31,11 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="APAS__MotionControl, Version=1.0.8.9, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\APAS__MotionControl.1.0.8.9\lib\net48\APAS__MotionControl.dll</HintPath>
+    <Reference Include="APAS.Interface, Version=1.1.0.1, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\APAS.Interface.1.1.0.1\lib\net461\APAS.Interface.dll</HintPath>
+    </Reference>
+    <Reference Include="APAS.McLib.Sdk, Version=1.1.1.13, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\APAS.McLib.Sdk.1.1.1.13\lib\net48\APAS.McLib.Sdk.dll</HintPath>
     </Reference>
     <Reference Include="log4net, Version=2.0.12.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
       <HintPath>..\packages\log4net.2.0.12\lib\net45\log4net.dll</HintPath>
@@ -58,6 +61,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="app.config" />
     <None Include="Gts800_AxisCfg.json" />
     <None Include="packages.config" />
   </ItemGroup>
